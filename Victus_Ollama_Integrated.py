@@ -22,6 +22,7 @@ import urllib.parse
 import urllib.request
 import urllib.error
 import webbrowser
+import winreg
 import zipfile
 import xml.etree.ElementTree as ET
 from collections import Counter, deque
@@ -4758,6 +4759,100 @@ def ask_vision_ai(query):
         speak(_spoken_summary(answer))
 
 
+# ---------------------------------------------------------------------------
+# UNIVERSAL APPLICATION DISCOVERY & LAUNCHING ENGINE
+# ---------------------------------------------------------------------------
+_SYSTEM_APP_COMMANDS = {
+    "settings": "ms-settings:",
+    "windows settings": "ms-settings:",
+    "system settings": "ms-settings:",
+    "calculator": "calc.exe",
+    "calc": "calc.exe",
+    "notepad": "notepad.exe",
+    "note pad": "notepad.exe",
+    "paint": "mspaint.exe",
+    "mspaint": "mspaint.exe",
+    "camera": "microsoft.windows.camera:",
+    "webcam": "microsoft.windows.camera:",
+    "photos": "ms-photos:",
+    "photo viewer": "ms-photos:",
+    "gallery": "ms-photos:",
+    "store": "ms-windows-store:",
+    "microsoft store": "ms-windows-store:",
+    "app store": "ms-windows-store:",
+    "clock": "ms-clock:",
+    "alarms": "ms-clock:",
+    "alarm": "ms-clock:",
+    "timer": "ms-clock:",
+    "stopwatch": "ms-clock:",
+    "terminal": "wt.exe",
+    "windows terminal": "wt.exe",
+    "command prompt": "cmd.exe",
+    "command window": "cmd.exe",
+    "cmd": "cmd.exe",
+    "powershell": "powershell.exe",
+    "task manager": "taskmgr.exe",
+    "taskmanager": "taskmgr.exe",
+    "task mgr": "taskmgr.exe",
+    "control panel": "control.exe",
+    "control pannel": "control.exe",
+    "control": "control.exe",
+    "file explorer": "explorer.exe",
+    "explorer": "explorer.exe",
+    "windows explorer": "explorer.exe",
+    "this pc": "explorer.exe",
+    "my computer": "explorer.exe",
+    "device manager": "devmgmt.msc",
+    "disk management": "diskmgmt.msc",
+    "services": "services.msc",
+    "registry editor": "regedit.exe",
+    "regedit": "regedit.exe",
+    "snipping tool": "snippingtool.exe",
+    "snip": "snippingtool.exe",
+    "character map": "charmap.exe",
+    "recycle bin": "shell:RecycleBinFolder",
+    "downloads": "shell:Downloads",
+    "documents": "shell:Personal",
+    "desktop": "shell:Desktop",
+    "sound settings": "mmsys.cpl",
+    "volume mixer": "sndvol.exe",
+    "network connections": "ncpa.cpl",
+    "programs and features": "appwiz.cpl",
+    "system properties": "sysdm.cpl",
+    "directx diagnostic": "dxdiag.exe",
+    "dxdiag": "dxdiag.exe",
+    "disk cleanup": "cleanmgr.exe",
+    "windows version": "winver.exe",
+    "winver": "winver.exe",
+}
+
+_WEB_APP_URLS = {
+    "youtube": "https://www.youtube.com",
+    "gemini": "https://gemini.google.com",
+    "claude": "https://claude.ai",
+    "chatgpt": "https://chatgpt.com",
+    "github": "https://github.com",
+    "gmail": "https://mail.google.com",
+    "google": "https://www.google.com",
+    "netflix": "https://www.netflix.com",
+    "spotify": "https://open.spotify.com",
+    "reddit": "https://www.reddit.com",
+    "twitter": "https://x.com",
+    "x": "https://x.com",
+    "instagram": "https://www.instagram.com",
+    "linkedin": "https://www.linkedin.com",
+    "amazon": "https://www.amazon.com",
+    "discord": "https://discord.com/app",
+    "facebook": "https://www.facebook.com",
+    "maps": "https://maps.google.com",
+    "google maps": "https://maps.google.com",
+    "drive": "https://drive.google.com",
+    "google drive": "https://drive.google.com",
+    "whatsapp web": "https://web.whatsapp.com",
+    "stackoverflow": "https://stackoverflow.com",
+    "stack overflow": "https://stackoverflow.com",
+}
+
 APP_ALIASES = {
     "chrome": ["chrome", "google chrome", "google", "browser"],
     "brave": ["brave", "brave browser", "brave web browser"],
@@ -4766,6 +4861,7 @@ APP_ALIASES = {
     "ms edge": ["edge", "microsoft edge", "ms edge"],
     "ms word": ["word", "microsoft word", "ms word"],
     "ms powerpoint": ["powerpoint", "power point", "microsoft powerpoint", "ms powerpoint", "ppt", "pptx"],
+    "ms excel": ["excel", "microsoft excel", "ms excel", "spreadsheet"],
     "ms store": ["store", "microsoft store", "app store"],
     "file explorer": ["file explorer", "explorer", "windows explorer", "my computer", "this pc"],
     "this pc": ["this pc", "my computer", "explorer"],
@@ -4787,7 +4883,13 @@ APP_ALIASES = {
     "asphalt 8 airborne": [
         "asphalt", "asphalt 8", "asphalt 8 airborne", "asphalt 8 air borne",
         "asphalt airborne", "asphalt eight", "asphalt eight airborne"
-    ]
+    ],
+    "vlc": ["vlc", "vlc media player", "vlc player", "video lan"],
+    "spotify": ["spotify", "spotify music"],
+    "expressvpn": ["expressvpn", "express vpn", "vpn"],
+    "onenote": ["onenote", "one note", "microsoft onenote"],
+    "sticky notes": ["sticky notes", "stickynotes", "notes app"],
+    "google drive": ["google drive", "gdrive"],
 }
 
 TYPO_MAP = {
@@ -4802,8 +4904,104 @@ TYPO_MAP = {
     "solid edge": "solid edge", "whatsapp": "whatsapp", "edge": "ms edge", "word": "ms word",
     "omen": "omen gaming hub", "omen hub": "omen gaming hub", "hp omen": "omen gaming hub",
     "asphalt": "asphalt 8 airborne", "asphalt 8": "asphalt 8 airborne", "asphalt 8 air borne": "asphalt 8 airborne",
-    "powerpoint": "ms powerpoint", "store": "ms store", "copilot": "ms copilot"
+    "powerpoint": "ms powerpoint", "store": "ms store", "copilot": "ms copilot", "excel": "ms excel"
 }
+
+_SHORTCUTS_CACHE = {"time": 0, "data": {}}
+_REGISTRY_APPS_CACHE = {"time": 0, "data": {}}
+_STARTAPPS_CACHE = {"time": 0, "data": {}}
+_STARTAPPS_SCANNING = False
+
+
+def _get_installed_shortcuts(force=False):
+    now = time.time()
+    if not force and _SHORTCUTS_CACHE["data"] and (now - _SHORTCUTS_CACHE["time"] < 45):
+        return _SHORTCUTS_CACHE["data"]
+    dirs = [
+        os.path.expandvars(r"%ProgramData%\Microsoft\Windows\Start Menu\Programs"),
+        os.path.expandvars(r"%AppData%\Microsoft\Windows\Start Menu\Programs"),
+        os.path.expandvars(r"%Public%\Desktop"),
+        os.path.expandvars(r"%UserProfile%\Desktop"),
+    ]
+    sc = {}
+    for d in dirs:
+        if os.path.exists(d):
+            try:
+                for root, _, files in os.walk(d):
+                    for f in files:
+                        if f.lower().endswith((".lnk", ".url")):
+                            clean = os.path.splitext(f)[0].lower().strip()
+                            clean_norm = normalize(clean)
+                            full_path = os.path.join(root, f)
+                            sc[clean] = full_path
+                            if clean_norm and clean_norm != clean:
+                                sc[clean_norm] = full_path
+            except Exception:
+                pass
+    _SHORTCUTS_CACHE["time"] = now
+    _SHORTCUTS_CACHE["data"] = sc
+    return sc
+
+
+def _get_registry_apps(force=False):
+    now = time.time()
+    if not force and _REGISTRY_APPS_CACHE["data"] and (now - _REGISTRY_APPS_CACHE["time"] < 60):
+        return _REGISTRY_APPS_CACHE["data"]
+    apps = {}
+    if platform.system().lower() == "windows":
+        for rk in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
+            try:
+                with winreg.OpenKey(rk, r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths") as k:
+                    for i in range(winreg.QueryInfoKey(k)[0]):
+                        sub = winreg.EnumKey(k, i)
+                        try:
+                            with winreg.OpenKey(k, sub) as sk:
+                                val = winreg.QueryValue(sk, "")
+                                if val and os.path.exists(val):
+                                    base = sub.lower().replace(".exe", "").strip()
+                                    apps[base] = val
+                                    apps[normalize(base)] = val
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+    _REGISTRY_APPS_CACHE["time"] = now
+    _REGISTRY_APPS_CACHE["data"] = apps
+    return apps
+
+
+def _populate_start_apps_cache():
+    global _STARTAPPS_SCANNING
+    if _STARTAPPS_SCANNING or platform.system().lower() != "windows":
+        return
+    _STARTAPPS_SCANNING = True
+    try:
+        no_window = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        ps_cmd = "$apps = Get-StartApps; $apps | ForEach-Object { \"$($_.Name)`t$($_.AppID)\" }"
+        res = subprocess.run(
+            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_cmd],
+            capture_output=True, text=True, timeout=10, creationflags=no_window
+        )
+        if res.returncode == 0 and res.stdout:
+            uwp = {}
+            for line in res.stdout.splitlines():
+                if "\t" in line:
+                    aname, aid = line.split("\t", 1)
+                    aname_clean = aname.lower().strip()
+                    aid_clean = aid.strip()
+                    uwp[aname_clean] = aid_clean
+                    uwp[normalize(aname_clean)] = aid_clean
+            _STARTAPPS_CACHE["data"] = uwp
+            _STARTAPPS_CACHE["time"] = time.time()
+            log(f"Universal App Launcher: indexed {len(uwp)} StartApps successfully.")
+    except Exception as e:
+        log(f"StartApps background index error: {e}")
+    finally:
+        _STARTAPPS_SCANNING = False
+
+
+# Start async indexing of StartApps at load
+threading.Thread(target=_populate_start_apps_cache, daemon=True, name="Victus-AppIndexer").start()
 
 
 def canonical_app_name(name):
@@ -4820,259 +5018,194 @@ def canonical_app_name(name):
     return TYPO_MAP.get(n)
 
 
+def find_installed_app(name):
+    """Universal app resolution across system utilities, Start Menu shortcuts,
+    Registry App Paths, UWP Store apps, and web apps.
+    Returns (match_type, target_string, display_name) or None."""
+    raw = str(name or "").strip()
+    if not raw:
+        return None
+    w = raw.lower().strip()
+    w = re.sub(r"^(the|my)\s+", "", w)
+    w = re.sub(r"\s+(app|application|software|window)$", "", w).strip()
+    w_norm = normalize(w)
+
+    # 1. Built-in Windows system utilities / protocol handlers
+    for candidate in [w, w_norm]:
+        if candidate in _SYSTEM_APP_COMMANDS:
+            return ("system", _SYSTEM_APP_COMMANDS[candidate], candidate.title())
+
+    # 2. Known aliases
+    canonical = canonical_app_name(w)
+    if canonical and canonical in _SYSTEM_APP_COMMANDS:
+        return ("system", _SYSTEM_APP_COMMANDS[canonical], canonical.title())
+
+    # 3. Start Menu and Desktop shortcuts
+    sc = _get_installed_shortcuts()
+    for candidate in [w, w_norm, canonical]:
+        if candidate and candidate in sc:
+            return ("shortcut", sc[candidate], candidate.title())
+
+    # 4. Registry App Paths
+    reg = _get_registry_apps()
+    for candidate in [w, w_norm, canonical]:
+        if candidate and candidate in reg:
+            return ("registry", reg[candidate], candidate.title())
+
+    # 5. StartApps (UWP / Modern apps)
+    uwp = _STARTAPPS_CACHE["data"]
+    for candidate in [w, w_norm, canonical]:
+        if candidate and candidate in uwp:
+            return ("uwp", uwp[candidate], candidate.title())
+
+    # 6. Fuzzy matching on shortcuts (.lnk / .url)
+    best_item = None
+    best_score = 0
+    w_tokens = set(w_norm.split())
+
+    for k, path in sc.items():
+        k_norm = normalize(k)
+        score = 0
+        if k == w or k_norm == w_norm:
+            score = 100
+        elif k.startswith(w + " ") or k_norm.startswith(w_norm + " ") or k.endswith(" " + w):
+            score = 85
+        elif f" {w_norm} " in f" {k_norm} ":
+            score = 80
+        elif w_norm and (w_norm in k_norm or k_norm in w_norm):
+            score = 70
+        else:
+            common = w_tokens & set(k_norm.split())
+            if common:
+                score = len(common) * 20
+        if score > best_score:
+            best_score = score
+            best_item = ("shortcut", path, k.title())
+
+    # Fuzzy match on registry apps
+    for k, path in reg.items():
+        k_norm = normalize(k)
+        score = 0
+        if k == w or k_norm == w_norm:
+            score = 100
+        elif w_norm in k_norm or k_norm in w_norm:
+            score = 75
+        if score > best_score:
+            best_score = score
+            best_item = ("registry", path, k.title())
+
+    # Fuzzy match on UWP apps
+    for k, aid in uwp.items():
+        k_norm = normalize(k)
+        score = 0
+        if k == w or k_norm == w_norm:
+            score = 100
+        elif w_norm in k_norm or k_norm in w_norm:
+            score = 75
+        if score > best_score:
+            best_score = score
+            best_item = ("uwp", aid, k.title())
+
+    if best_item and best_score >= 35:
+        return best_item
+
+    # 7. Popular Web Applications fallback
+    for candidate in [w, w_norm, canonical]:
+        if candidate and candidate in _WEB_APP_URLS:
+            return ("web", _WEB_APP_URLS[candidate], candidate.title())
+
+    return None
+
 
 def open_windows_start_app(display_name, aliases=None):
-    '''Robust Windows Store/MSIX launcher.
-
-    First uses Get-StartApps. If the app is installed but not registered there,
-    it falls back to installed AppX/MSIX packages and their manifest IDs.
-    '''
-    if platform.system().lower() != "windows":
-        speak(f"{display_name} is supported by this launcher on Windows.")
-        return False
-
-    aliases = aliases or []
-    candidates = [display_name] + list(aliases)
-    normalized_candidates = [normalize(x) for x in candidates if x]
-
-    def score_name(name):
-        n = normalize(name)
-        score = 0
-        for cand in normalized_candidates:
-            if n == cand:
-                score = max(score, 120)
-            elif cand in n or n in cand:
-                score = max(score, 90)
-            else:
-                score = max(score, len(set(cand.split()) & set(n.split())) * 15)
-        return score
-
-    no_window = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-
-    # Normal Windows StartApps registration.
-    ps_start = r'''
-$apps = Get-StartApps
-$apps | ForEach-Object {
-    "$($_.Name)`t$($_.AppID)"
-}
-'''
-    try:
-        result = subprocess.run(
-            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
-             "-Command", ps_start],
-            capture_output=True, text=True, timeout=8,
-            creationflags=no_window
-        )
-
-        best = None
-        for line in result.stdout.splitlines():
-            if "\t" not in line:
-                continue
-            app_name, app_id = line.split("\t", 1)
-            score = score_name(app_name)
-            if score and (best is None or score > best[0]):
-                best = (score, app_name.strip(), app_id.strip())
-
-        if best:
-            _, matched_name, app_id = best
-            subprocess.Popen(
-                ["explorer.exe", f"shell:AppsFolder\\{app_id}"],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-            )
-            log(f"Start App launched: {matched_name} [{app_id}]")
-            return True
-    except Exception as e:
-        log(f"StartApps lookup failed for {display_name}: {e}")
-
-    # AppX/MSIX fallback. This handles apps that Get-StartApps doesn't expose.
-    ps_appx = r'''
-$packages = Get-AppxPackage | Where-Object {
-    $_.Name -match 'OMEN|HP.*Gaming|Asphalt|Gameloft'
-}
-foreach ($p in $packages) {
-    try {
-        $xml = [xml](Get-AppxPackageManifest -Package $p)
-        foreach ($a in $xml.Package.Applications.Application) {
-            $display = [string]$a.VisualElements.DisplayName
-            $appId = [string]$a.Id
-            if (-not $display) { $display = $appId }
-            "$($p.Name)`t$($p.PackageFamilyName)`t$display`t$appId"
-        }
-    } catch {}
-}
-'''
-    try:
-        result = subprocess.run(
-            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
-             "-Command", ps_appx],
-            capture_output=True, text=True, timeout=12,
-            creationflags=no_window
-        )
-
-        best = None
-        for line in result.stdout.splitlines():
-            parts = line.split("\t")
-            if len(parts) < 4:
-                continue
-            package_name, family_name, app_display, app_id = [x.strip() for x in parts[:4]]
-            score = max(score_name(app_display), score_name(package_name))
-            if score and (best is None or score > best[0]):
-                best = (score, package_name, family_name, app_display, app_id)
-
-        if best:
-            _, package_name, family_name, app_display, app_id = best
-            shell_id = f"{family_name}!{app_id}"
-            subprocess.Popen(
-                ["explorer.exe", f"shell:AppsFolder\\{shell_id}"],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-            )
-            log(f"AppX/MSIX launched: {app_display} [{package_name} / {shell_id}]")
-            return True
-    except Exception as e:
-        log(f"AppX/MSIX lookup failed for {display_name}: {e}")
-
-    log(f"Windows app not found/installed: {display_name}")
-    return False
-
+    """Backward compatibility wrapper for open_app."""
+    return open_app(display_name)
 
 
 def open_app(name):
-    """Launch a Windows application without announcing the launch.
-
-    Uses normal Windows executable/protocol launching first, with the existing
-    StartApps/MSIX resolver retained as a fallback for Store/MSIX applications.
-    """
-    wanted = normalize(name).strip()
-    canonical = canonical_app_name(wanted)
-    target = canonical if canonical else wanted
-
-    if not target:
+    """Universal Windows Application Launcher.
+    Can open ANY application installed on the user's PC, plus system utilities
+    and web apps."""
+    raw_name = str(name or "").strip()
+    if not raw_name:
+        speak("What application would you like me to open?")
         return False
 
-    app_executables = {
-        "chrome": "chrome.exe",
-        "brave": "brave.exe",
-        "whatsapp": "whatsapp:",
-        "notepad": "notepad.exe",
-        "ms edge": "msedge.exe",
-        "ms word": "winword.exe",
-        "ms powerpoint": "powerpnt.exe",
-        "ms store": "ms-windows-store:",
-        "file explorer": "explorer.exe",
-        "this pc": "explorer.exe",
-        "arduino ide": "arduino.exe",
-        "calculator": "calc.exe",
-        "solitery and games": "ms-gamingoverlay:",
-        "settings": "ms-settings:",
-        "camera": "microsoft.windows.camera:",
-        "photos": "ms-photos:",
-        "ms copilot": "copilot:",
-        "idle python": "idle.exe",
-        "code blocks": "codeblocks.exe",
-        "vs code": "code.exe",
-        "solid edge": "seedge.exe",
-        "task manager": "taskmgr.exe",
-        "control pannel": "control.exe",
-        "comand window": "cmd.exe",
-    }
+    log(f"Open App requested: '{raw_name}'")
+    match = find_installed_app(raw_name)
 
-    # Store/MSIX applications keep the existing dynamic resolver.
-    if target == "omen gaming hub":
-        ok = open_windows_start_app(
-            "OMEN Gaming Hub",
-            ["OMEN Gaming Hub", "OMEN Hub", "OMEN"]
-        )
-        if not ok:
-            speak("I couldn't find OMEN Gaming Hub in the Windows Start menu.")
-        return ok
+    if match:
+        mtype, target, display_name = match
+        log(f"App resolved ({mtype}): {display_name} -> {target}")
 
-    if target == "asphalt 8 airborne":
-        ok = open_windows_start_app(
-            "Asphalt 8: Airborne",
-            ["Asphalt 8: Airborne", "Asphalt 8 Airborne", "Asphalt 8"]
-        )
-        if not ok:
-            speak("I couldn't find Asphalt 8 Airborne in the Windows Start menu.")
-        return ok
-
-    # Brave is often not added to PATH on Windows. Check the standard
-    # installation locations first so "open brave" works reliably.
-    if target == "brave" and os.name == "nt":
-        brave_candidates = [
-            os.path.join(os.environ.get("PROGRAMFILES", r"C:\\Program Files"),
-                         "BraveSoftware", "Brave-Browser", "Application", "brave.exe"),
-            os.path.join(os.environ.get("PROGRAMFILES(X86)", r"C:\\Program Files (x86)"),
-                         "BraveSoftware", "Brave-Browser", "Application", "brave.exe"),
-            os.path.join(os.environ.get("LOCALAPPDATA", ""),
-                         "BraveSoftware", "Brave-Browser", "Application", "brave.exe"),
-        ]
-        for brave_path in brave_candidates:
-            if brave_path and os.path.isfile(brave_path):
-                try:
-                    subprocess.Popen(
-                        [brave_path],
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-                    )
-                    return True
-                except Exception as e:
-                    log(f"Brave direct-path launch failed: {e}")
-
-    exe = app_executables.get(target, target)
-
-    try:
-        # Windows URI/protocol handlers and shell folders.
-        if exe.startswith(("http://", "https://")):
-            webbrowser.open(exe)
-            return True
-
-        if exe.endswith(":") or exe.startswith("ms-"):
-            os.startfile(exe)
-            return True
-
-        # Known normal executables: do not use shell=True. This avoids the
-        # unreliable `start "" "..."` command and makes launch success clearer.
-        if os.name == "nt":
-            subprocess.Popen(
-                [exe],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-            )
-            return True
-
-        subprocess.Popen([exe], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        return True
-
-    except (FileNotFoundError, OSError) as e:
-        log(f"Direct app launch failed for {name} ({exe}): {e}")
-
-        # If Windows can find the app through StartApps, use the existing
-        # dynamic resolver as a fallback instead of giving up.
-        if os.name == "nt":
-            aliases = APP_ALIASES.get(target, [target])
-            if open_windows_start_app(name, aliases):
+        try:
+            if mtype == "system":
+                if target.endswith(":") or target.startswith("ms-") or target.startswith("shell:"):
+                    os.startfile(target)
+                else:
+                    subprocess.Popen([target], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 return True
 
-        # Last-resort shell launch for unusual aliases/commands.
-        if os.name == "nt":
+            elif mtype == "shortcut":
+                os.startfile(target)
+                return True
+
+            elif mtype == "registry":
+                os.startfile(target)
+                return True
+
+            elif mtype == "uwp":
+                os.startfile(f"shell:AppsFolder\\{target}")
+                return True
+
+            elif mtype == "web":
+                webbrowser.open(target)
+                return True
+
+        except Exception as e:
+            log(f"Primary launch failed for {target}: {e}")
             try:
                 subprocess.Popen(
-                    ["cmd", "/c", "start", "", exe],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                    ["cmd", "/c", "start", "", target],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
                 )
                 return True
             except Exception as e2:
-                log(f"Shell fallback failed for {name}: {e2}")
-        speak(f"I couldn't open {name}.")
-        return False
-    except Exception as e:
-        log("Open app error: " + str(e))
-        speak(f"I couldn't open {name}.")
-        return False
+                log(f"Command shell fallback failed: {e2}")
+
+    # Fallback 1: Direct executable or protocol launch via os.startfile
+    if platform.system().lower() == "windows":
+        try:
+            os.startfile(raw_name)
+            log(f"Direct startfile succeeded for '{raw_name}'")
+            return True
+        except Exception:
+            pass
+
+        # Fallback 2: Check standard executable extensions (.exe)
+        if not raw_name.lower().endswith(".exe"):
+            try:
+                os.startfile(raw_name + ".exe")
+                log(f"Direct startfile (.exe) succeeded for '{raw_name}'")
+                return True
+            except Exception:
+                pass
+
+        # Fallback 3: Shell 'start' command
+        try:
+            res = subprocess.run(
+                ["cmd", "/c", "start", "", raw_name],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            )
+            if res.returncode == 0:
+                log(f"Shell start succeeded for '{raw_name}'")
+                return True
+        except Exception:
+            pass
+
+    speak(f"I couldn't find an installed application named {raw_name}.")
+    return False
 
 
 
@@ -5391,19 +5524,21 @@ def google_search_text(query):
 
 
 def open_web_shortcut(site_name):
-    urls = {
-        "gemini": "https://gemini.google.com",
-        "youtube": "https://www.youtube.com",
-        "claude": "https://claude.ai",
-        "chatgpt": "https://chatgpt.com"
-    }
-    url = urls.get(site_name)
+    w = str(site_name or "").lower().strip()
+    url = _WEB_APP_URLS.get(w)
+    if not url:
+        for k, u in _WEB_APP_URLS.items():
+            if w in k or k in w:
+                url = u
+                break
     if url:
         speak(f"Opening {site_name}.")
         try:
-            subprocess.Popen(["cmd", "/c", "start", "", "chrome", url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.Popen(["cmd", "/c", "start", "", url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except Exception:
             webbrowser.open(url)
+        return True
+    return False
 
 
 def youtube_search(query):
@@ -8285,11 +8420,14 @@ def execute_single_command(cmd_norm):
             set_brightness(int(nums[0]))
         else:
             speak("Say the brightness level percentage.")
-    elif cmd_norm in ["gemini", "youtube", "claude", "chatgpt"] or cmd_norm.startswith("open gemini") or cmd_norm.startswith("open youtube") or cmd_norm.startswith("open claude") or cmd_norm.startswith("open chatgpt"):
-        for site in ["gemini", "youtube", "claude", "chatgpt"]:
+    elif any(site in cmd_norm for site in _WEB_APP_URLS) and any(cmd_norm.startswith(p) for p in ["open", "launch", "start", "visit", "go to"]):
+        site_found = None
+        for site in _WEB_APP_URLS:
             if site in cmd_norm:
-                open_web_shortcut(site)
+                site_found = site
                 break
+        if site_found:
+            open_web_shortcut(site_found)
     elif cmd_norm.startswith("search for"):
         q = re.sub(r"^search for\s*", "", cmd_norm).strip()
         if q:
@@ -8305,7 +8443,7 @@ def execute_single_command(cmd_norm):
             youtube_search(q)
         else:
             random_song()
-    elif "open" in cmd_norm:
+    elif any(cmd_norm.startswith(p) for p in ["open ", "launch ", "start "]) or "open" in cmd_norm:
         app = re.sub(r"^(open|launch|start)\s*", "", cmd_norm).strip()
         if app:
             speak(f"Opening {app}.")
@@ -8320,6 +8458,9 @@ def execute_single_command(cmd_norm):
         app = re.sub(r"^(close|kill)\s*", "", cmd_norm).strip()
         if app:
             close_window(app)
+    elif find_installed_app(cmd_norm) is not None:
+        speak(f"Opening {cmd_norm}.")
+        open_app(cmd_norm)
     else:
         # Unknown commands become local AI questions instead of simply failing.
         ask_local_ai(cmd_norm)
