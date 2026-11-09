@@ -1,0 +1,9 @@
+[
+  {
+    "id": 1,
+    "kind": "reminder",
+    "action": "drink water",
+    "time": "2026-09-02 12:55:00",
+    "done": true
+  }
+]

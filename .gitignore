@@ -1,0 +1,27 @@
+# Executables & Installers
+*.exe
+*.lnk
+OllamaSetup.exe
+abstract-sphere-with-flowing-particles.zip
+
+# Python Bytecode & Environments
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+.venv
+env/
+venv/
+
+# PyInstaller / Build Artifacts
+build/
+dist/
+*.spec
+
+# Large AI Models & Cache
+models/
+.cache/
+
+# Local temporary files
+*.tmp
+*.log
