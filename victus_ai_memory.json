@@ -1,14 +1,6 @@
 [
   [
     "user",
-    "what is an ai"
-  ],
-  [
-    "assistant",
-    "AI stands for Artificial Intelligence. It refers to the simulation of human intelligence in machines that are programmed to think and learn like humans. These systems are designed to perform tasks such as problem-solving, recognizing patterns, understanding natural language, and making decisions.\n\nAI can be categorized into two main types:\n\n1. Narrow AI or Weak AI: This type of AI is designed and trained for a specific task. It operates under a limited scope and is not general-purpose. Examples include virtual assistants like Siri, Alexa, and Google Assistant, as well as recommendation systems like those used by Netflix or Amazon.\n\n2. General AI or Strong AI: This type of AI would have the ability to understand, learn, and apply intelligence across a wide range of tasks, similar to human cognition. General AI is still theoretical and has not been developed yet.\n\nAI systems can be further divided into three categories based on their capabilities:\n\n1. Reactive AI: These systems can only respond to the current environment or situation. They don't have memory or learning capabilities. An example of reactive AI is a chess-playing program that can only respond to the current board state without remembering past moves.\n\n2. Limited Memory AI: These systems have some memory and can learn from past experiences. They can perform tasks based on historical data. An example is a recommendation system that learns from previous user interactions to suggest relevant products or content.\n\n3. Theory of Mind AI: This is a hypothetical type of AI that would have the ability to understand and interpret human emotions, thoughts, and intentions. It would be capable of empathizing and engaging in complex social interactions. Currently, this type of AI remains a theoretical concept.\n\nAI technologies are being used in various fields such as healthcare, finance, transportation, entertainment, and more. However, there are also ethical considerations and concerns regarding privacy, security, and the potential impact on employment. As AI continues to evolve, it's important to address these challenges and ensure responsible and ethical use of AI technologies."
-  ],
-  [
-    "user",
     "what is ai"
   ],
   [
@@ -22,5 +14,13 @@
   [
     "assistant",
     "It seems like there might be some confusion or missing context in your question. If you're referring to a graph that represents a flowchart or a diagram showing the flow of information or processes, I can certainly help explain how to write one out or understand its components. However, I would need more specific details about the graph you're mentioning to provide accurate assistance.\n\nIf you're asking about writing out a graph for a mathematical equation, a chemical reaction, or any other specific process, please provide the details of the graph or the equation you're referring to, and I'll be happy to help you with it."
+  ],
+  [
+    "user",
+    "what is an ai"
+  ],
+  [
+    "assistant",
+    "AI stands for Artificial Intelligence. It refers to the simulation of human intelligence in machines that are programmed to think and learn like humans. These systems are designed to perform tasks such as problem-solving, recognizing patterns, understanding natural language, and making decisions.\n\nAI can be categorized into two main types:\n\n1. Narrow AI or Weak AI: This type of AI is designed and trained for a specific task. It operates under a limited scope and is not general-purpose. Examples include virtual assistants like Siri, Alexa, and Google Assistant, as well as recommendation systems like those used by Netflix or Amazon.\n\n2. General AI or Strong AI: This type of AI would have the ability to understand, learn, and apply intelligence across a wide range of tasks, similar to human cognition. General AI is still theoretical and has not been developed yet.\n\nAI systems can be further divided into three categories based on their capabilities:\n\n1. Reactive AI: These systems can only respond to the current environment or situation. They don't have memory or learning capabilities. An example of reactive AI is a chess-playing program that can only respond to the current board state without remembering past moves.\n\n2. Limited Memory AI: These systems have some memory and can learn from past experiences. They can perform tasks based on historical data. An example is a recommendation system that learns from previous user interactions to suggest relevant products or content.\n\n3. Theory of Mind AI: This is a hypothetical type of AI that would have the ability to understand and interpret human emotions, thoughts, and intentions. It would be capable of empathizing and engaging in complex social interactions. Currently, this type of AI remains a theoretical concept.\n\nAI technologies are being used in various fields such as healthcare, finance, transportation, entertainment, and more. However, there are also ethical considerations and concerns regarding privacy, security, and the potential impact on employment. As AI continues to evolve, it's important to address these challenges and ensure responsible and ethical use of AI technologies."
   ]
 ]

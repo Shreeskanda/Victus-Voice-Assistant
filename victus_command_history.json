@@ -58,5 +58,60 @@
     "id": 12,
     "time": "2026-11-09 12:11:32",
     "text": "sleep"
+  },
+  {
+    "id": 13,
+    "time": "2026-11-09 12:54:57",
+    "text": "whats my battery status"
+  },
+  {
+    "id": 14,
+    "time": "2026-11-09 12:57:18",
+    "text": "open omen"
+  },
+  {
+    "id": 15,
+    "time": "2026-11-09 15:49:55",
+    "text": "whats my bluetooth status"
+  },
+  {
+    "id": 16,
+    "time": "2026-11-09 15:50:21",
+    "text": "shutdown"
+  },
+  {
+    "id": 17,
+    "time": "2026-11-11 12:19:30",
+    "text": "scan my network"
+  },
+  {
+    "id": 18,
+    "time": "2026-11-11 12:23:17",
+    "text": "scan my network"
+  },
+  {
+    "id": 19,
+    "time": "2026-11-11 12:33:14",
+    "text": "wake on lan AjaySirSIT"
+  },
+  {
+    "id": 20,
+    "time": "2026-11-11 12:34:15",
+    "text": "scan my network"
+  },
+  {
+    "id": 21,
+    "time": "2026-11-11 13:08:24",
+    "text": "shutdown"
+  },
+  {
+    "id": 22,
+    "time": "2026-11-11 14:09:23",
+    "text": "scan my network"
+  },
+  {
+    "id": 23,
+    "time": "2026-11-12 22:09:22",
+    "text": "what is an AI"
   }
 ]
