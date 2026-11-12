@@ -124,4 +124,5 @@ Developed with ❤️ by **Shreeskanda**
 
 ## 📄 License
 
-This project is licensed under the [MIT License](LICENSE).
+This project is protected under a [Custom License](LICENSE).  
+Personal use and copying are permitted. **Modification, publishing, and redistribution are NOT allowed** without explicit written permission from the author.
