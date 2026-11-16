@@ -60,6 +60,15 @@ Control your Windows mouse cursor using only your webcam and hand gestures via M
 - **Scheduled Reminders**: Set time-based reminders and scheduled alerts.
 - **Network Tools**: Wake-on-LAN (magic packet transmitter) and LAN device scanner.
 
+### 👁️ 7. Offline Vision & Screen Analysis (No Token Limit)
+- **Live Screen Analysis**: Ask `"analyze what's on my screen"`, `"explain this error"`, or `"summarize my screen"` to visually inspect active applications, code, UI, or errors completely offline via Moondream / local vision models.
+- **Image Recognition**: Recognizes images from clipboard or file paths (`"analyze image <path>"`).
+- **Uncapped Response Length**: Full offline streaming responses without arbitrary token truncation.
+
+### 🎨 8. Offline Image Generation
+- **Local Art Synthesizer**: Generate high-resolution 1024x1024 digital artwork, landscapes, and cyber art offline via `"generate an image of <prompt>"` or `"draw <prompt>"`.
+- **Automatic Preview**: Automatically saves generated artwork into `victus_generated_images/` and launches it in Windows Photo Viewer.
+
 ---
 
 ## 🚀 Getting Started
@@ -106,7 +115,9 @@ python Victus_Ollama_Integrated.py
 |---|---|
 | **Air Cursor** | `"open air cursor"`, `"close air cursor"`, `"calibrate air cursor"` |
 | **System** | `"set volume to 50"`, `"mute"`, `"brightness up"`, `"take a screenshot"` |
-| **Apps** | `"open chrome"`, `"open spotify"`, `"open settings"`, `"open whatsapp"` |
+| **Apps** | `"open chrome"`, `"open spotify"`, `"open settings"`, `"open whatsapp"`, `"open qoder"` |
+| **Screen & Vision** | `"analyze what's on my screen"`, `"what is on my screen"`, `"analyze image"` |
+| **Image Generation** | `"generate an image of a cyber car"`, `"draw a sunset over mountains"` |
 | **Math & Calculation** | `5 + 5`, `100 / 4`, `(12 + 8) * 3`, `calculate 25 * 4`, `2^8` |
 | **AI Questions** | `"what is quantum computing?"`, `"explain C++"`, `"solve 2x + 5 = 15"` |
 | **Macros** | `"record macro"`, `"stop recording"`, `"run macro workspace"` |

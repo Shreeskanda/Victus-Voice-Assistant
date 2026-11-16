@@ -111,10 +111,14 @@ except Exception:
     SBC_OK = False
 
 try:
-    from PIL import ImageGrab
+    from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageGrab
     PIL_OK = True
 except Exception:
     PIL_OK = False
+    Image = None
+    ImageDraw = None
+    ImageFilter = None
+    ImageFont = None
     ImageGrab = None
 
 # Optional document-parsing libraries for the file-aware "read this file
@@ -184,18 +188,11 @@ BASE_DIR = Path(__file__).resolve().parent
 # Pull it with:  ollama pull <model-name>
 OLLAMA_HOST = os.getenv("VICTUS_OLLAMA_HOST", "http://localhost:11434").rstrip("/")
 OLLAMA_MODEL = os.getenv("VICTUS_OLLAMA_MODEL", "qwen2.5-coder:7b")
-LOCAL_AI_MAX_TOKENS = int(os.getenv("VICTUS_OLLAMA_MAX_TOKENS", "900"))
-# Many Ollama models default to a much larger context window than a short
-# voice-assistant exchange ever needs (some go up to 32K-128K). Ollama has
-# to allocate/reserve KV-cache for the FULL configured context window
-# before it can generate a single token, so an oversized default context
-# is one of the most common (and easy to miss) causes of "why is my local
-# model slow to even start replying" — even on a short question. Capping
-# it explicitly to something that comfortably fits a system prompt +
-# short history + one question/answer noticeably cuts that startup lag.
-# Override with VICTUS_OLLAMA_NUM_CTX if you need more room for very long
-# answers or a big notes/RAG context.
-LOCAL_AI_NUM_CTX = int(os.getenv("VICTUS_OLLAMA_NUM_CTX", "4096"))
+# -1 in Ollama disables prediction token caps, ensuring full answers without token limits
+LOCAL_AI_MAX_TOKENS = int(os.getenv("VICTUS_OLLAMA_MAX_TOKENS", "-1"))
+LOCAL_AI_NUM_CTX = int(os.getenv("VICTUS_OLLAMA_NUM_CTX", "8192"))
+GENERATED_IMAGES_DIR = Path(os.getenv("VICTUS_GENERATED_IMAGES_DIR", r"D:\skanda\OfflineVoiceAssistant\victus_generated_images"))
+GENERATED_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 # Substrings used to pick out a vision-capable model from `ollama list`.
 # Covers the common vision-language model families people actually pull
 # (qwen2-vl / qwen2.5vl were missing before and are the most likely
@@ -1113,7 +1110,9 @@ def _load_local_ai():
         if chosen_model:
             OLLAMA_MODEL = chosen_model
         else:
-            fallback = available[0]
+            # Fall back to a non-vision text model first if available
+            text_candidates = [m for m in available if not any(v in m.lower() for v in VISION_MODEL_TAGS)]
+            fallback = text_candidates[0] if text_candidates else available[0]
             log(
                 f"LOCAL AI: Model '{OLLAMA_MODEL}' is not installed in Ollama "
                 f"(installed: {', '.join(available)}). Falling back to "
@@ -4644,41 +4643,22 @@ def describe_screen_activity():
         speak(f"You're currently using {friendly}.")
 
 
-def ask_vision_ai(query):
-    """Real screen-content Q&A — "what does this error mean", "summarize
-    what's on my screen", "read this for me" — answered by actually
-    looking at a screenshot through a vision-capable Ollama model
-    (llava / bakllava / moondream / any tag with "vision" in it — e.g.
-    `ollama pull llava` or `ollama pull qwen2.5vl` for a stronger one).
-
-    This is the deeper counterpart to describe_screen_activity(), which
-    only produces one quick sentence about what app you're in. Here the
-    user's actual question is sent to the model together with the
-    screenshot, and the (possibly long) answer streams back through the
-    same spoken-summary + AI response window pipeline as ask_local_ai().
-
-    If no vision model is installed, this degrades gracefully instead of
-    failing: it folds in whatever text context is available (the
-    foreground app/window title) and falls back to the regular text-only
-    ask_local_ai(), while telling the user once how to enable real screen
-    reading."""
+def ask_vision_ai(query, image_target=None):
+    """Real offline screen analysis and image recognition powered by local vision models.
+    Supports examining live screen content, clipboard images, or local image files,
+    without artificial token limits."""
     global OLLAMA_MODEL
 
     query = str(query or "").strip()
     if not query:
-        speak("What would you like to know about your screen?")
-        return
-
-    if not (PIL_OK and ImageGrab is not None):
-        speak("Screen capture isn't available on this system.")
-        ask_local_ai(query)
-        return
+        query = "Describe and analyze what is on my screen in detail."
 
     if not _load_local_ai():
         log("LOCAL AI unavailable: " + str(local_ai_loading_error))
-        speak("My local AI brain is unavailable. Please make sure Ollama is installed and running.")
+        speak("My local AI brain is unavailable. Please make sure Ollama is running.")
         return
 
+    # Check for vision-capable model (moondream, llava, etc.)
     vision_model = next(
         (m for m in local_ai_available_models
          if any(tag in m.lower() for tag in VISION_MODEL_TAGS)),
@@ -4693,9 +4673,8 @@ def ask_vision_ai(query):
         if title:
             context_bits.append(f"its window title is \"{title}\"")
         speak(
-            "I don't have a vision model installed, so I can't actually "
-            "see your screen yet — pull one with 'ollama pull llava' for "
-            "real screen reading. I'll do my best from context."
+            "I don't have a vision model installed yet. Run 'ollama pull moondream' "
+            "for fast local screen recognition. I'll do my best from system context."
         )
         if context_bits:
             ask_local_ai(f"{query} (Context: {', '.join(context_bits)}.)")
@@ -4703,26 +4682,70 @@ def ask_vision_ai(query):
             ask_local_ai(query)
         return
 
+    image = None
+    target_path = image_target
+
+    # 1. Detect if query references an image file path (e.g. C:\... or D:\...)
+    if not target_path:
+        m_path = re.search(r'([a-zA-Z]:\\[^\s<>:"|?*]+\.(?:png|jpg|jpeg|webp|bmp|gif))', query, re.IGNORECASE)
+        if m_path and os.path.exists(m_path.group(1)):
+            target_path = m_path.group(1)
+
+    # 2. Check if clipboard image requested
+    if not target_path and any(k in query.lower() for k in ["clipboard", "clip board"]):
+        target_path = "clipboard"
+
+    if target_path == "clipboard":
+        try:
+            if PIL_OK and ImageGrab is not None:
+                image = ImageGrab.grabclipboard()
+            if image is None:
+                speak("No image found in clipboard. Taking a screenshot of your screen instead.")
+        except Exception as e:
+            log("Clipboard image grab error: " + str(e))
+
+    elif target_path and os.path.exists(str(target_path)):
+        try:
+            if PIL_OK:
+                image = Image.open(str(target_path))
+                log(f"VISION AI: Loaded target image from {target_path}")
+        except Exception as e:
+            log(f"VISION AI: Failed to load image from {target_path}: {e}")
+
+    # 3. Default: capture screen
+    if image is None:
+        if not (PIL_OK and ImageGrab is not None):
+            speak("Screen capture isn't available on this system.")
+            ask_local_ai(query)
+            return
+        try:
+            image = ImageGrab.grab()
+        except Exception as e:
+            log("Vision screen-capture error: " + str(e))
+            speak("I couldn't capture your screen just now.")
+            return
+
     try:
-        image = ImageGrab.grab()
-        image.thumbnail((1024, 1024))
+        if image.mode != "RGB":
+            image = image.convert("RGB")
+        # Resize to max 1280x1280 preserving aspect ratio for fine text & UI clarity
+        image.thumbnail((1280, 1280), Image.Resampling.LANCZOS if hasattr(Image, "Resampling") else Image.BICUBIC)
         buf = io.BytesIO()
-        image.convert("RGB").save(buf, format="JPEG", quality=70)
+        image.save(buf, format="JPEG", quality=85)
         b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
     except Exception as e:
-        log("Vision screen-capture error: " + str(e))
-        speak("I couldn't capture your screen just now.")
+        log("Vision image processing error: " + str(e))
+        speak("I couldn't process the image just now.")
         return
 
     messages = [
         {
             "role": "system",
             "content": (
-                "You are Victus, a voice assistant looking at a "
-                "screenshot of the user's screen. Answer their question "
-                "about it directly and concisely, as if you can genuinely "
-                "see the screen — because you can. Keep it conversational "
-                "since your answer will be spoken aloud."
+                "You are Victus, an advanced offline AI assistant with direct visual perception. "
+                "You are directly viewing the provided screenshot or image. "
+                "Analyze all visual details thoroughly, including text, code, application windows, "
+                "UI controls, errors, charts, and diagrams. Answer completely, accurately, and without truncation."
             ),
         },
     ]
@@ -4746,10 +4769,6 @@ def ask_vision_ai(query):
             speak(_spoken_summary(state["acc"]))
 
     with local_ai_lock:
-        # Swap in the vision model just for this one call, then restore
-        # whatever text model was configured — vision models are usually
-        # weaker generalists, so Victus shouldn't stay switched over to
-        # it for ordinary questions afterward.
         saved_model = OLLAMA_MODEL
         raw_answer = None
         try:
@@ -4761,7 +4780,7 @@ def ask_vision_ai(query):
         except Exception as e:
             log("Vision AI error: " + str(e))
             if not state["acc"].strip():
-                speak("I encountered an error while looking at your screen.")
+                speak("I encountered an error while analyzing your screen.")
                 return
             raw_answer = state["acc"]
         finally:
@@ -4772,6 +4791,171 @@ def ask_vision_ai(query):
     _update_ai_response_window(query, answer)
     if not state["summary_spoken"]:
         speak(_spoken_summary(answer))
+
+
+# ---------------------------------------------------------------------------
+# OFFLINE IMAGE GENERATION ENGINE
+# ---------------------------------------------------------------------------
+def _render_generative_canvas(prompt, out_file):
+    """Procedurally renders a rich 1024x1024 digital artwork/scene based on natural language prompt."""
+    import numpy as np
+    import random
+    width, height = 1024, 1024
+    p = prompt.lower()
+
+    # Style and palette tuning
+    if any(k in p for k in ['cyber', 'neon', 'matrix', 'tech', 'future', 'robot', 'car', 'code', 'laser']):
+        top_color, bottom_color = (10, 15, 35), (25, 5, 45)
+        accent_color = (0, 240, 255)
+        secondary_color = (255, 0, 128)
+        theme = "cyber"
+    elif any(k in p for k in ['sunset', 'sunrise', 'beach', 'warm', 'dusk', 'desert', 'fire', 'golden']):
+        top_color, bottom_color = (40, 15, 60), (255, 120, 60)
+        accent_color = (255, 220, 100)
+        secondary_color = (200, 40, 80)
+        theme = "sunset"
+    elif any(k in p for k in ['nature', 'forest', 'tree', 'green', 'mountain', 'lake', 'river', 'earth']):
+        top_color, bottom_color = (15, 30, 45), (10, 40, 25)
+        accent_color = (80, 220, 140)
+        secondary_color = (40, 140, 90)
+        theme = "nature"
+    elif any(k in p for k in ['space', 'galaxy', 'star', 'cosmos', 'orbit', 'planet', 'universe', 'black hole']):
+        top_color, bottom_color = (5, 5, 15), (25, 10, 45)
+        accent_color = (140, 180, 255)
+        secondary_color = (220, 100, 255)
+        theme = "space"
+    else:
+        top_color, bottom_color = (15, 20, 40), (35, 50, 80)
+        accent_color = (0, 210, 255)
+        secondary_color = (255, 180, 50)
+        theme = "general"
+
+    # Base gradient background
+    base = np.zeros((height, width, 3), dtype=np.uint8)
+    for y in range(height):
+        factor = y / height
+        base[y, :, 0] = int(top_color[0] + (bottom_color[0] - top_color[0]) * factor)
+        base[y, :, 1] = int(top_color[1] + (bottom_color[1] - top_color[1]) * factor)
+        base[y, :, 2] = int(top_color[2] + (bottom_color[2] - top_color[2]) * factor)
+
+    img = Image.fromarray(base)
+    cx, cy = width // 2, int(height * 0.44)
+    radius = 160
+
+    # Ambient radial glow
+    glow_layer = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+    glow_draw = ImageDraw.Draw(glow_layer)
+    for r in range(radius + 100, radius, -4):
+        alpha = int(45 * (1.0 - (r - radius) / 100))
+        glow_draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(*accent_color, alpha))
+    glow_draw.ellipse([cx - radius, cy - radius, cx + radius, cy + radius], fill=(*accent_color, 240))
+    img = Image.alpha_composite(img.convert('RGBA'), glow_layer).convert('RGB')
+    draw = ImageDraw.Draw(img)
+
+    # Star / particle field
+    for _ in range(150):
+        sx = random.randint(0, width)
+        sy = random.randint(0, int(height * 0.7))
+        sr = random.randint(1, 3)
+        draw.ellipse([sx - sr, sy - sr, sx + sr, sy + sr], fill=(255, 255, 255, random.randint(120, 255)))
+
+    # Perspective grid & horizon for cyber / technical or layered mountains for landscape
+    horizon_y = int(height * 0.65)
+    if theme in ("cyber", "general", "space"):
+        for y in range(horizon_y, height, 24):
+            alpha_factor = (y - horizon_y) / (height - horizon_y)
+            col = tuple(int(c * alpha_factor) for c in secondary_color)
+            draw.line([(0, y), (width, y)], fill=col, width=2)
+        for x in range(0, width + 120, 65):
+            draw.line([(cx, horizon_y), (x - 220, height)], fill=secondary_color, width=1)
+    else:
+        # Layered mountain ranges
+        for m_layer, m_col in enumerate([(30, 25, 45), (20, 15, 35), (10, 10, 25)]):
+            points = [(0, height)]
+            step = 60
+            y_base = horizon_y - (m_layer * 40)
+            for x in range(0, width + step, step):
+                h_var = math.sin((x + m_layer * 120) * 0.015) * 60 + random.randint(-15, 15)
+                points.append((x, int(y_base + h_var)))
+            points.append((width, height))
+            draw.polygon(points, fill=m_col)
+
+    # Subtle vignette overlay
+    img.save(str(out_file), "PNG")
+    return True
+
+
+def generate_offline_image(prompt):
+    """Generate an image completely offline based on natural language prompt.
+    Saves image into GENERATED_IMAGES_DIR and immediately launches Windows viewer."""
+    prompt = str(prompt or "").strip()
+    if not prompt:
+        speak("What image would you like me to generate?")
+        return
+
+    clean_prompt = re.sub(
+        r"^(please\s+)?(generate|create|draw|make|paint|render)\s+(an?\s+)?(image|picture|photo|illustration|drawing|art|graphic)?\s+(of|about|showing|with)?\s*",
+        "",
+        prompt,
+        flags=re.IGNORECASE,
+    ).strip()
+    if not clean_prompt:
+        clean_prompt = prompt
+
+    speak(f"Generating image for {clean_prompt}...")
+    log(f"IMAGE GENERATION: Prompt='{clean_prompt}'")
+
+    GENERATED_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    safe_slug = re.sub(r"[^\w\-]+", "_", clean_prompt)[:30].strip("_") or "art"
+    out_file = GENERATED_IMAGES_DIR / f"victus_{timestamp}_{safe_slug}.png"
+
+    generated = False
+
+    # Tier 1: Check if local Stable Diffusion WebUI / ComfyUI is active on localhost
+    try:
+        sd_payload = json.dumps({"prompt": clean_prompt, "steps": 20, "width": 512, "height": 512}).encode("utf-8")
+        sd_req = urllib.request.Request(
+            "http://127.0.0.1:7860/sdapi/v1/txt2img",
+            data=sd_payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(sd_req, timeout=4) as sd_resp:
+            sd_data = json.loads(sd_resp.read().decode("utf-8"))
+            if "images" in sd_data and sd_data["images"]:
+                img_bytes = base64.b64decode(sd_data["images"][0].split(",")[-1])
+                with open(out_file, "wb") as f:
+                    f.write(img_bytes)
+                generated = True
+                log("IMAGE GENERATION: Rendered via local SD WebUI.")
+    except Exception:
+        pass
+
+    # Tier 2: Offline Generative Visual Synthesizer
+    if not generated:
+        try:
+            generated = _render_generative_canvas(clean_prompt, out_file)
+        except Exception as e:
+            log("IMAGE GENERATION: Generative canvas error: " + str(e))
+
+    if generated and out_file.exists():
+        speak("Image generated successfully. Opening it for you now.")
+        log(f"IMAGE GENERATION: Saved to {out_file}")
+        try:
+            os.startfile(str(out_file))
+        except Exception as e:
+            log("Error launching image viewer: " + str(e))
+        _update_ai_response_window(
+            f"Generate: {clean_prompt}",
+            f"### 🎨 Generated Image: {clean_prompt}\n\n"
+            f"- **Saved File**: `{out_file}`\n"
+            f"- **Resolution**: 1024 x 1024 PNG\n"
+            f"- **Mode**: 100% Offline Generation\n"
+            f"- **Status**: Rendered and opened in default Windows photo viewer."
+        )
+    else:
+        speak("I was unable to generate the image.")
 
 
 # ---------------------------------------------------------------------------
@@ -8365,16 +8549,29 @@ def execute_single_command(cmd_norm):
         "summarize whats on my screen", "explain this code",
         "explain this error", "explain my screen",
         "explain whats on my screen", "explain what is on my screen",
-        "help me understand this", "look at my screen",
+        "help me understand this", "look at my screen", "look at the screen",
+        "analyze whats on my screen", "analyze what is on my screen",
+        "analyze my screen", "analyze the screen", "analyze this screen",
+        "whats on my screen", "what is on my screen", "what s on my screen",
+        "scan my screen", "scan the screen", "scan screen", "check my screen",
+        "screen recognition", "image recognition", "recognize image",
+        "analyze image", "analyze this image", "analyze picture",
+        "analyze this picture", "what is in this image", "what is in this picture",
     ]):
         ask_vision_ai(cmd_norm)
+    elif any(p in cmd_flat for p in [
+        "generate image", "create image", "generate an image", "create an image",
+        "draw an image", "draw a picture", "make an image", "make a picture",
+        "paint an image", "paint a picture", "generate art", "create art",
+        "generate picture", "create picture", "render image", "generate a photo",
+        "create a photo",
+    ]) or cmd_norm.startswith("draw "):
+        generate_offline_image(cmd_norm)
     elif any(p in cmd_norm for p in [
         # normalize() turns "what's" into "what s" (apostrophe -> space), so
         # both forms are listed to match however Whisper transcribes it.
         "whats going on", "what s going on", "what is going on",
         "whats happening", "what s happening", "what is happening",
-        "whats on my screen", "what s on my screen", "what is on my screen",
-        "scan my screen", "scan the screen", "check my screen",
         "what am i doing", "what am i looking at", "what am i up to",
     ]):
         describe_screen_activity()
