@@ -26,4 +26,3 @@ models/
 # Local temporary files
 *.tmp
 *.log
-victus_generated_images/
