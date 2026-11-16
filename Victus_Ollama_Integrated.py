@@ -183,7 +183,7 @@ BASE_DIR = Path(__file__).resolve().parent
 # one of: "qwen2.5:14b", "llama3.1:8b", "deepseek-r1:14b", "mistral-nemo".
 # Pull it with:  ollama pull <model-name>
 OLLAMA_HOST = os.getenv("VICTUS_OLLAMA_HOST", "http://localhost:11434").rstrip("/")
-OLLAMA_MODEL = os.getenv("VICTUS_OLLAMA_MODEL", "llama3.2")
+OLLAMA_MODEL = os.getenv("VICTUS_OLLAMA_MODEL", "qwen2.5-coder:7b")
 LOCAL_AI_MAX_TOKENS = int(os.getenv("VICTUS_OLLAMA_MAX_TOKENS", "900"))
 # Many Ollama models default to a much larger context window than a short
 # voice-assistant exchange ever needs (some go up to 32K-128K). Ollama has
@@ -1097,7 +1097,22 @@ def _load_local_ai():
                 or installed_tag.split(":")[0] == wanted_tag.split(":")[0]
             )
 
-        if not any(_matches(m, OLLAMA_MODEL) for m in available):
+        chosen_model = None
+        for m in available:
+            if _matches(m, OLLAMA_MODEL):
+                chosen_model = m
+                break
+
+        if not chosen_model:
+            # Prefer any installed qwen2.5-coder variant if present
+            for m in available:
+                if "qwen2.5-coder" in m.lower():
+                    chosen_model = m
+                    break
+
+        if chosen_model:
+            OLLAMA_MODEL = chosen_model
+        else:
             fallback = available[0]
             log(
                 f"LOCAL AI: Model '{OLLAMA_MODEL}' is not installed in Ollama "
@@ -4824,6 +4839,11 @@ _SYSTEM_APP_COMMANDS = {
     "disk cleanup": "cleanmgr.exe",
     "windows version": "winver.exe",
     "winver": "winver.exe",
+    "qoder": r"D:\skanda\OfflineVoiceAssistant\Qoder\Qoder.exe",
+    "qwen": r"D:\skanda\OfflineVoiceAssistant\Qoder\Qoder.exe",
+    "qwen coder": r"D:\skanda\OfflineVoiceAssistant\Qoder\Qoder.exe",
+    "qwen2.5 coder": r"D:\skanda\OfflineVoiceAssistant\Qoder\Qoder.exe",
+    "qwen2.5-coder": r"D:\skanda\OfflineVoiceAssistant\Qoder\Qoder.exe",
 }
 
 _WEB_APP_URLS = {
@@ -4890,9 +4910,14 @@ APP_ALIASES = {
     "onenote": ["onenote", "one note", "microsoft onenote"],
     "sticky notes": ["sticky notes", "stickynotes", "notes app"],
     "google drive": ["google drive", "gdrive"],
+    "qoder": [
+        "qoder", "qwen", "qwen coder", "qwen2.5 coder", "qwen2.5-coder",
+        "qwen coding", "qwen code", "qoder ai", "qoder ide"
+    ],
 }
 
 TYPO_MAP = {
+    "qwen": "qoder", "qwen coder": "qoder", "qwen2.5 coder": "qoder", "qwen2.5-coder": "qoder",
     "googel chrome": "chrome", "google chrom": "chrome", "brave browser": "brave", "brave": "brave", "microsoft wor": "word",
     "power point": "powerpoint", "power point presentation": "powerpoint", "note pad": "notepad",
     "calender": "calendar", "code block": "codeblocks", "code blocks": "codeblocks",

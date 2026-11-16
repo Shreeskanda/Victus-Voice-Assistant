@@ -3,6 +3,7 @@
 *.lnk
 OllamaSetup.exe
 abstract-sphere-with-flowing-particles.zip
+Qoder/
 
 # Python Bytecode & Environments
 __pycache__/
